@@ -1,3 +1,5 @@
+Author: Fabian Hauck (yes.com)
+
 # app2app-evolution
 
 OAuth flows on mobile devices can benefit a lot from native apps.
@@ -7,10 +9,26 @@ the user experience they also bring new security challenges to
 OAuth. This document describes the challenge of app2app, app2web
 and web2app redirection on Android and iOS.
 
-## Problem Formulation
+## Problem Statement
 
-On mobile OSs contrary to a browser we cannot simply use a URL
-to redirect the user to the OpenID Provider (IDP).
+Since OAuth is used to issue access tokens for accessing protected
+resources it is crucial to secure the issuance process. Therefore,
+it is important that the Authorization Request and the Authorization
+Response does not get hijacked by an adversary. 
+
+If, for example, the
+Authorization Response gets hijacked and the client does not use
+PKCE, the adversary could inject the authorization code into his 
+session to get access to the victim's protected resources ([Code Injection](https://tools.ietf.org/id/draft-ietf-oauth-security-topics-14.html#rfc.section.4.5)). PKCE can help to protect the Authorization Response. But if
+the Authorization Request gets also hijacked, the attacker can 
+modify it and use the authorization code despite PKCE. Using a
+Pushed Authorization Request (PAR) or signing the Authorization Request
+will also not mitigate the attacks that are possible if the
+OAuth redirection gets hijacked. Therefore, it is critical to
+properly secure the redirection to the OpenID Provider (IDP). 
+
+In a browser, it is secure to redirect the user using a URL,
+but this is not secure on most mobile operating systems.
 Android, for example, permit's arbitrary apps to claim that they
 handle a specific domain. Although it is possible to verify a 
 domain-app association ([Android App Link](https://developer.android.com/training/app-links)) 
@@ -37,7 +55,7 @@ hijacking.
 On iOS the situation is different. There, an app can only claim to
 handle an http:// scheme URL if it can verify an association with the domain ([Universal Links](https://developer.apple.com/ios/universal-links/)).
 Custom schemes, again, can be claimed by every app but the OS will
-not display a selection menu. Instead, it launches the app that
+not display a selection menu, but instead launch the app that
 claimed the scheme for the first time.
 
 ## Attacker Model
@@ -63,15 +81,15 @@ app through a third-party app store
 
 ## Goals
 
-1. If the required app is installed on the device,
-the app should always be opened. 
+1. If the user is redirected from the RP to the IDP, he should
+either go to the legit app or to the default browser. If the 
+default browser supports Android Custom Tabs, the website 
+should be opened in a Custom Tab. There should never be a
+menu where the user has to choose between multiple apps.
 
-2. If the required app is
-not installed, the website of the app owner should be opened
-inside the user's default browser.
-
-3. The user should never have to choose between multiple apps
-   (dialog can be seen in the picture above).
+2. If the user is redirected from the IDP back to the RP,
+he should either go directly to the legit app or to the 
+default browser.
 
 ## Solution on iOS
 On iOS, we can use Universal Links to redirect the user from one
@@ -390,98 +408,10 @@ user experience:
    without modifications.
 
 
-## Complete Solution on Android
+## Proposed Solution on Android
 
 -- Description Following --
 
-```plantuml
-title Relying Party App to OpenID Provider
-
-box "Relying Party" #LightBlue
-participant "Relying Party Backend" as rpb
-participant "Relying Party Website" as rpw
-participant "Relying Party App" as rpa
-end box
-participant "OS" as os
-box "OpenID Provider" #LightGreen
-participant "OpenID Provider App" as opa
-participant "OpenID Provider Website" as opw
-participant "Authorization Server" as as
-end box
-
-rpa -> os: isAppInstalled(applicationID)
-rpa <-- os: return (installed, cert_fingerprint)
-
-alt installed == true && verification successful
-   rpa -> rpa: verify cert_fingerprint
-   rpa ->> os: Intent(URL).setPackage(applicationID)
-   os ->> opa: Intent(URL).setPackage(applicationID)
-else
-   rpa -> os: checkIfAppWithAppIDisInstalled(applicationID)
-   rpa <-- os: return(installed)
-   alt installed == true
-      rpa -> rpa: Abort or warn the user
-   end
-   rpa -> os: getDefaultBrowserApplicationID()
-   rpa <-- os: return (browserApplicationID, cert_fingerprint)
-   rpa -> rpa: verify cert_fingerprint
-   rpa ->> os: Intent(URL).setPackage(browserApplicationID)
-   os ->> opw: Intent(URL).setPackage(browserApplicationID)
-end
-```
-
 -- Description Following --
 
-```plantuml
-title OpenID Provider App to Relying Party
-
-box "Relying Party" #LightBlue
-participant "Relying Party Backend" as rpb
-participant "Relying Party Website" as rpw
-participant "Relying Party App" as rpa
-end box
-participant "OS" as os
-box "OpenID Provider" #LightGreen
-participant "OpenID Provider App" as opa
-participant "OpenID Provider Website" as opw
-participant "Authorization Server" as as
-end box
-
-alt callingActivity?.packageName != null
-   os <- opa: getCertificate(callingActivity?.packageName)
-   os --> opa: return (cert_fingerprint)
-   opa -> opa: verify cert_fingerprint and redirect_uri
-   os <<- opa: setResult(intent)
-   rpa <<- os: setResult(intent)
-else
-   os <- opa: getDefaultBrowserApplicationID()
-   os --> opa: return (browserApplicationID, cert_fingerprint)
-   opa -> opa: verify cert_fingerprint
-   os <<- opa: Intent(URL).setPackage(browserApplicationID)
-   rpw <<- os: Intent(URL).setPackage(browserApplicationID)
-end
-```
-
 -- Description Following --
-
-```plantuml
-title OpenID Provider Web to Relying Party
-
-box "Relying Party" #LightBlue
-participant "Relying Party Backend" as rpb
-participant "Relying Party Website" as rpw
-participant "Relying Party App" as rpa
-end box
-participant "OS" as os
-box "OpenID Provider" #LightGreen
-participant "OpenID Provider App" as opa
-participant "OpenID Provider Website" as opw
-participant "Authorization Server" as as
-end box
-
-opw <- as: Authorization Response (code)
-rpb <- opw: Authorization Response (code)
-rpb -> rpb: change url to intent:// scheme
-rpb -> os: intent://...?code=...#Intent;scheme=https;package=...;end
-rpa <- os: Intent(URL).setPackage(...)
-```

@@ -1,0 +1,31 @@
+@startuml
+
+title OpenID Provider App to Relying Party
+
+box "Relying Party" #LightBlue
+participant "Relying Party Backend" as rpb
+participant "Relying Party Website" as rpw
+participant "Relying Party App" as rpa
+end box
+participant "OS" as os
+box "OpenID Provider" #LightGreen
+participant "OpenID Provider App" as opa
+participant "OpenID Provider Website" as opw
+participant "Authorization Server" as as
+end box
+
+alt callingActivity?.packageName != null
+   os <- opa: getCertificate(callingActivity?.packageName)
+   os --> opa: return (cert_fingerprint)
+   opa -> opa: verify cert_fingerprint and redirect_uri
+   os <<- opa: setResult(intent)
+   rpa <<- os: setResult(intent)
+else
+   os <- opa: getDefaultBrowserApplicationID()
+   os --> opa: return (browserApplicationID, cert_fingerprint)
+   opa -> opa: verify cert_fingerprint
+   os <<- opa: Intent(URL).setPackage(browserApplicationID)
+   rpw <<- os: Intent(URL).setPackage(browserApplicationID)
+end
+
+@enduml
