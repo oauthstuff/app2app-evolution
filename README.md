@@ -410,8 +410,65 @@ user experience:
 
 ## Proposed Solution on Android
 
--- Description Following --
+After seeing so many possible solutions for Android you probably ask
+yourself what are the best techniques for Android. This section 
+describes the best current practice solution for Android. It is 
+divided into the redirection from the RP app to the IDP, the IDP app to the RP, and the IDP website to the RP. This solution will not use
+Android App Links, but instead set the package name of the apps
+explicitly to the Android Intent.
 
--- Description Following --
+### RP App to IDP
 
--- Description Following --
+To redirect from the RP app to the IDP, the RP app has to check whether 
+the IDP app is installed. It does this by requesting the certificate
+with which the IDP app was signed from the Android Package Manager. If the
+app is not installed, the Package Manager will throw an exception.
+After this, the certificate hash has to be compared with the hash that is
+found in the ``/.well-known/assetlinks.json`` file. If they are the same,
+the RP app can redirect the user to the IDP app with an Android Intent
+that has the package name of the IDP app set. The Intent has to be started
+with the method ``startActivityForResult()``. 
+
+If the IDP app is not
+installed, the RP app has to determine the user's default browser
+and compare the certificate hash of this browser with a hardcoded hash.
+If this is successful, the RP app can open the browser with an Android
+Intent that has the package name of the default browser set.
+
+<img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/rp_to_idp.plantuml?token=AMDSJA3FU2H3J4VKXC6W2TS7FBVL4" style="background-color: white">
+
+### IDP App to RP
+
+The IDP app has to check whether the variable 
+``callingActivity?.packageName`` is not null. If the variable is not null,
+the app knows that it was called with the method ``startActivityForResult()``
+and the IDP app also knows the package name of the RP app. With the 
+package name, the IDP app can get the signing certificate of the
+RP app. This information can be compared with the values that are 
+stored in the  ``/.well-known/assetlinks.json`` file of the redirect_uri 
+domain for the package name and the certificate. If these values are the
+same, the IDP app can redirect the user back to the RP app with the 
+method ``setResult()``.
+
+If the IDP app was not
+started via the ``startActivityForResult()`` method the RP app is not 
+installed or the user did not use the app. In this case, we have to
+redirect the user back to the default browser with the same mechanic
+as in the **RP App to IDP** solution.
+
+<img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/idp_app_to_rp.plantuml?token=AMDSJA2XDC2EZJPAX4LUK7K7FBXAM" style="background-color: white">
+
+### IDP Web to RP
+
+The redirect_uri should depend on whether the user starts a flow
+on the web or the Android app. If the user started on the web, the normal
+web OAuth flow should happen without any app. This diagram shows the case
+where the user started in the RP app but was redirected to the web 
+because the IDP app was not installed. In this case, the redirect_uri
+should point to an endpoint of the RP that takes the parameters from
+the Authorization Response and redirects the browser to a URL that uses
+the intent:// scheme. In this intent:// scheme the RP can set the package
+name of the RP app. Since we started the flow inside the RP app the user
+will be redirected to the legit app.
+
+<img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/idp_web_to_rp.plantuml?token=AMDSJA6HHNMJRU2V6AWO77S7FBXB2" style="background-color: white">
