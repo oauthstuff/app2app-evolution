@@ -19,11 +19,13 @@ Response does not get hijacked by an adversary.
 If, for example, the
 Authorization Response gets hijacked and the client does not use
 PKCE, the adversary could inject the authorization code into his 
-session to get access to the victim's protected resources ([Code Injection](https://tools.ietf.org/id/draft-ietf-oauth-security-topics-14.html#rfc.section.4.5)). PKCE can help to protect the Authorization Response. But if
+session to get access to the victim's protected resources ([Code Injection](https://tools.ietf.org/id/draft-ietf-oauth-security-topics-14.html#rfc.section.4.5)). 
+PKCE can help to protect the Authorization Response. But if
 the Authorization Request gets also hijacked, the attacker can 
-modify it and use the authorization code despite PKCE. Using a
-Pushed Authorization Request (PAR) or signing the Authorization Request
-will also not mitigate the attacks that are possible if the
+modify it and use the authorization code despite PKCE. This attack
+is similar to the one described [here](https://web-in-security.blogspot.com/2017/01/pkce-what-cannot-be-protected.html).
+Using a Pushed Authorization Request (PAR) or signing the Authorization 
+Request will also not mitigate the attacks that are possible if the
 OAuth redirection gets hijacked. Therefore, it is critical to
 properly secure the redirection to the OpenID Provider (IDP). 
 
@@ -53,7 +55,8 @@ to handle this custom scheme which makes it susceptible to redirect
 hijacking.
 
 On iOS the situation is different. There, an app can only claim to
-handle an http:// scheme URL if it can verify an association with the domain ([Universal Links](https://developer.apple.com/ios/universal-links/)).
+handle an http:// or https:// scheme URL if it can verify an association 
+with the domain ([Universal Links](https://developer.apple.com/ios/universal-links/)).
 Custom schemes, again, can be claimed by every app but the OS will
 not display a selection menu, but instead launch the app that
 claimed the scheme for the first time.
@@ -128,7 +131,7 @@ the URL back to the app.
    ```
    If the app of the domain owner is installed and supports
    [Android App Links](https://developer.android.com/training/app-links) 
-   the right app will always be opened. If the domain owner
+   the legit app will always be opened. If the domain owner
    app is not installed, the OS will display an app chooser
    dialog (can be seen in the picture above). Since every
    app can claim to handle the domain name, the user could
@@ -144,10 +147,10 @@ the URL back to the app.
    ```
    This code forces the OS to open the link inside a web browser
    and not in an app that just claims to open this domain name.
-   If the user has multiple browsers installed he still has to
+   If the user has multiple browsers installed, he still has to
    choose between them.
 
-3. Use Custom Chrome Tabs
+3. Use Android Custom Tabs
    ```kotlin
    val uri =  Uri.parse("https://app2app.unsicher.ovh?request_uri=Hello_World")
 
@@ -155,9 +158,9 @@ the URL back to the app.
    val customTabsIntent = builder.build()
    customTabsIntent.launchUrl(this, uri)
    ```
-   This code opens a [Custom Chrome Tab](https://developer.chrome.com/multidevice/android/customtabs). 
+   This code opens a [Android Custom Tab](https://developer.chrome.com/multidevice/android/customtabs). 
    The problem hereby is that if the user does not 
-   have a default browser (unlikely) he has to choose
+   have a default browser (unlikely), he has to choose
    between all installed browsers. Additionally, if a
    malicious app is installed the user has to 
    choose between this app and the browser. It is a
@@ -191,7 +194,7 @@ the URL back to the app.
    To prevent that the user has to choose
    between multiple apps, an intent can be explicitly
    told which package it should use to execute
-   the intent. In this example a Chrome Custom
+   the intent. In this example a Android Custom
    Tab is initialized and the 
    `getDefaultBrowserPackageName()` method
    checks what the package name of the user's
@@ -207,7 +210,7 @@ Solutions 2 and 4 have the problem that they will
 open a web browser even if the app of the domain
 owner is installed on the device. To open the
 app if the app is installed it is necessary to
-first check whether the app is installed. The
+check whether the app is installed. The
 code for this can be seen below. The app must, of
 course, register the domain name as an Android
 App Link.
@@ -236,7 +239,7 @@ private fun isAppInstalled(packageName: String): Boolean {
 }
 ```
 
-**Note:** Since the applicationID of the app
+**Note:** Since the package name of the app
 is needed, it would be necessary to include it in
 the OpenID Provider's metadata ([RFC 8414](https://tools.ietf.org/html/rfc8414#section-2)) or download it from 
 ``/.well-known/assetlinks.json``.
@@ -245,14 +248,14 @@ the OpenID Provider's metadata ([RFC 8414](https://tools.ietf.org/html/rfc8414#s
 ### Problem with Android App Links
 If an IDP app is responsible for several hundred domains,
 the app has to register an Android App Link for every single
-domain. If one of these registrations fails none of them would be valid.
+domain. If one of these registrations fails, none of them would be valid.
 Additionally, the IDP app has to download a document from every
 single domain. This could be a problem in mobile networks.
 
-To solve this the Relying Party could add the applicationID to the
+To solve this the Relying Party could add the package name to the
 intent that opens the redirect URL. This would ensure that the 
 correct app opens without Android App Links. It is also a good 
-solution since we already have the applicationID of the IDP
+solution since we already have the package name of the IDP
 to check whether the app is installed or not.
 
 ```kotlin
@@ -267,7 +270,7 @@ startActivity(redirectIntent)
 ### Problem with Alternative App Stores
 Since Android is an open system it is possible to install apps 
 from other sources than the Play Store. While it is guaranteed 
-that the applicationID of apps from the Play Store is unique this 
+that the package name of apps from the Play Store is unique this 
 does not apply to apps installed from other sources. One possibility
 to overcome this security thread is to check the signing certificate
 of the app, we want to open. This can be done in the ``isAppInstalled``
@@ -297,9 +300,9 @@ private fun isAppInstalled(packageName: String): Boolean {
 }
 ```
 
-For this solution, we need besides the applicationID additionally
+For this solution, we need besides the package name additionally
 the hashes of the certificates that were used to sign the APK.
-This can be either put into the discovery document or if the
+This can either be put into the discovery document or if the
 IDP app uses Android App Links the hash can be found in the
 ``/.well-known/assetlinks.json`` file.
 
@@ -309,12 +312,13 @@ IDP app uses Android App Links the hash can be found in the
 To redirect back from the OpenID Provider app to the calling
 activity in the Relying Party app we can use the method
 ``startActivityForResult()``. This has two advantages: First
-the OpenID Provider app can get the applicationID of the calling
+the OpenID Provider app can get the package name of the calling
 app with ``callingActivity?.packageName`` and second the IDP  app
 can redirect to the calling app with the ``setResult()`` method.
 
-Nevertheless, should the IDP app check if the redirect_uri from the AS, the applicationID and the certificate fingerprint of the calling app
-matches.
+Nevertheless, should the IDP app check if the redirect_uri from the AS, 
+the package name, and the certificate fingerprint of the calling app
+matches. This should be done like this:
 
 ```
 domain := getDomain(redirect_uri)
@@ -391,20 +395,28 @@ user experience:
    <!-- Source: https://developer.chrome.com/multidevice/android/intents -->
    <a href="intent://relyingparty.intranet/?code=foo_bar#Intent;scheme=http;package=com.example.relyingparty;S.browser_fallback_url=https://app2app.unsicher.ovh/?code=foo_bar;end">To app via intent scheme</a>
    ```
-   This scheme will open the correct app in
-   any browser since it is handled as an intent
-   that has the app's package name set. This assures
-   that always the same app will open.
+   The [intent scheme](https://developer.chrome.com/multidevice/android/intents) 
+   will use the package name to find an app to open the URL. 
+   This scheme is essentially handled as an Android Intent 
+   by the system and works in every browser. If no app with 
+   the package name is found, the user will be redirected to 
+   the URL specified in the ``S.browser_fallback_url`` parameter.
+
+   Since we can only specify the package name a malicious
+   app from another app store could hijack this kind of
+   redirection. To prevent this we would need a
+   feature to specify the signing certificate hash of
+   the target app. But this feature is not available.
 
    The problem with this scheme and OAuth 2.0
    is that the intent specification is in the
    fragment part of the URL. Since OAuth 2.0 just
-   uses the redirect_url and appends the 
+   uses the redirect_uri and appends the 
    parameters it is not directly possible to use
    this type of URL. But if we redirect the 
-   browser first to a backend endpoint that
+   browser to a backend endpoint that
    redirects the browser to a URL with the intent
-   scheme it is possible to use existing AS
+   scheme it is possible to use an existing AS
    without modifications.
 
 
@@ -435,7 +447,91 @@ and compare the certificate hash of this browser with a hardcoded hash.
 If this is successful, the RP app can open the browser with an Android
 Intent that has the package name of the default browser set.
 
-<img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/rp_to_idp.plantuml?token=AMDSJA3FU2H3J4VKXC6W2TS7FBVL4" style="background-color: white">
+<img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/rp_to_idp.plantuml" style="background-color: white">
+
+**Example Code:**
+
+```kotlin
+if (isLegitAppInstalled(packageName)) {
+   val browserIntent = Intent(Intent.ACTION_VIEW, uri)
+   browserIntent.setPackage(packageName)
+   startActivityForResult(browserIntent, 1)
+} else {
+   val builder = CustomTabsIntent.Builder()
+   val customTabsIntent = builder.build()
+   val defaultBrowser = getDefaultBrowserPackageName()
+   customTabsIntent.intent.setPackage(defaultBrowser)
+   customTabsIntent.launchUrl(this, uri)
+}
+
+private fun isLegitAppInstalled(packageName: String): Boolean {
+   try {
+      // Try to query the signing certificates of the
+      // IDP app. If the IDP app is not installed this
+      // operation will throw an error.
+      val signatures: Array<Signature>?
+      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            val signingInfo = packageManager.getPackageInfo(
+               packageName,
+               PackageManager.GET_SIGNING_CERTIFICATES
+            ).signingInfo
+            signatures = signingInfo.signingCertificateHistory
+      } else {
+            signatures = packageManager.getPackageInfo(
+               packageName,
+               PackageManager.GET_SIGNATURES
+            ).signatures
+      }
+
+      println("Cert hashes for $packageName")
+      // calculate the hashes of the signing certificates
+      val signatureStrings = generateSignatureHashes(signatures)
+
+      // Compare the hashes with a predefined list of
+      // certificate hashes for the app.
+      return matchHashes(packageName, signatureStrings)
+   } catch (e: PackageManager.NameNotFoundException) {
+      return false
+   }
+}
+
+private fun getDefaultBrowserPackageName(): String {
+   /*
+      Source: https://stackoverflow.com/questions/23611548/how-to-find-default-browser-set-on-android-device
+   */
+   val browserIntent =
+      Intent(Intent.ACTION_VIEW, Uri.parse("http://"))
+   val resolveInfo =
+      packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
+
+   // This is the default browser's packageName
+   val packageName = resolveInfo!!.activityInfo.packageName
+
+   if (isLegitAppInstalled(packageName)) {
+      return packageName
+   } else {
+      throw SecurityException("Signing certificate does not match")
+   }
+}
+
+private fun matchHashes(packageName: String, signatures: Set<String>): Boolean {
+   if (signatures.containsAll(IDP_SIGNATURE_HASHES[packageName]!!)
+      && signatures.size == IDP_SIGNATURE_HASHES[packageName]?.size) {
+      return true
+   }
+   return false
+}
+
+private val IDP_SIGNATURE_HASHES = mapOf(
+   "com.example.openidprovider" to setOf("mMfhQ5ypyWgn_kcWmsBgKmFbiC_MTqtmR45n5iqT-Gg="),
+   "com.example.openidprovider2" to setOf("WCdjSvXVB3zeS5QnYLDHzTONkxMCjQvgD8Um9Ig58dU="),
+   "com.android.chrome" to setOf("8P1sW0EPJcslw7UzRsiXL64w-O50Ed-RBICtay1g24M="),
+   "org.mozilla.firefox" to setOf("p4tipRZbRJSy_q2edqKA0i2Tf-5iUa7OWZRGsuoxmwQ="),
+   "com.duckduckgo.mobile.android" to setOf("u3uzHFc8RqHaf8XFKKas9DIQhFb-7FCBDH8zaU6z0tQ="),
+   "com.opera.browser" to setOf("XWr7-H9lKvBGR62g32NM8iNwkAsWSwnVC9I6ostShbg="),
+   "com.cloudmosa.puffinFree" to setOf("miN4zCylfd-MpHNZQlmFqrRntXm3gROVN4LkpHxDfFk=")
+)
+```
 
 ### IDP App to RP
 
@@ -456,13 +552,19 @@ installed or the user did not use the app. In this case, we have to
 redirect the user back to the default browser with the same mechanic
 as in the **RP App to IDP** solution.
 
-<img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/idp_app_to_rp.plantuml?token=AMDSJA2XDC2EZJPAX4LUK7K7FBXAM" style="background-color: white">
+<img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/idp_app_to_rp.plantuml" style="background-color: white">
+
+**Example Code:**
+
+```kotlin
+println("Example code following")
+```
+
 
 ### IDP Web to RP
 
 The redirect_uri should depend on whether the user starts a flow
-on the web or the Android app. If the user started on the web, the normal
-web OAuth flow should happen without any app. This diagram shows the case
+on the web or the Android app. This diagram shows the case
 where the user started in the RP app but was redirected to the web 
 because the IDP app was not installed. In this case, the redirect_uri
 should point to an endpoint of the RP that takes the parameters from
@@ -471,4 +573,25 @@ the intent:// scheme. In this intent:// scheme the RP can set the package
 name of the RP app. Since we started the flow inside the RP app the user
 will be redirected to the legit app.
 
-<img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/idp_web_to_rp.plantuml?token=AMDSJA6HHNMJRU2V6AWO77S7FBXB2" style="background-color: white">
+<img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/idp_web_to_rp.plantuml" style="background-color: white">
+
+**Example Code:**
+
+```kotlin
+println("Example code following")
+```
+
+## Limitations on Android
+
+While redirecting from app2app and app2web can be secured really
+well on Android, it is difficult to secure the web2app redirection.
+There are two essential problems. First, Android App Links are only
+supported by the Chrome browser and second, it is not possible
+to set the certificate hash of the target app in the intent
+scheme. If either of these problems would be solved we could
+safely redirect from the web to an app. So at the moment there
+are two options: Either the user is only allowed to use the
+Chrome browser which is not possible if he starts the flow
+in another browser or we have to accept the risk that the
+redirection could get hijacked by an app that was installed
+from an alternative app store with the same package name.

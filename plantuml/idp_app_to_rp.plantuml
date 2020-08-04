@@ -21,11 +21,11 @@ alt callingActivity?.packageName != null
    os <<- opa: setResult(intent)
    rpa <<- os: setResult(intent)
 else
-   os <- opa: getDefaultBrowserApplicationID()
-   os --> opa: return (browserApplicationID, cert_fingerprint)
+   os <- opa: getDefaultBrowserPackageName()
+   os --> opa: return (browserPackageName, cert_fingerprint)
    opa -> opa: verify cert_fingerprint
-   os <<- opa: Intent(URL).setPackage(browserApplicationID)
-   rpw <<- os: Intent(URL).setPackage(browserApplicationID)
+   os <<- opa: Intent(URL).setPackage(browserPackageName)
+   rpw <<- os: Intent(URL).setPackage(browserPackageName)
 end
 
 @enduml

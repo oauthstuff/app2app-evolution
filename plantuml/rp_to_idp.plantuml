@@ -14,19 +14,19 @@ participant "OpenID Provider Website" as opw
 participant "Authorization Server" as as
 end box
 
-rpa -> os: isAppInstalled(applicationID)
+rpa -> os: isAppInstalled(packageName)
 rpa <-- os: return (installed, cert_fingerprint)
 rpa -> rpa: verify cert_fingerprint
 
 alt installed == true && verification successful
-   rpa ->> os: Intent(URL).setPackage(applicationID)
-   os ->> opa: Intent(URL).setPackage(applicationID)
+   rpa ->> os: Intent(URL).setPackage(packageName)
+   os ->> opa: Intent(URL).setPackage(packageName)
 else
-   rpa -> os: getDefaultBrowserApplicationID()
-   rpa <-- os: return (browserApplicationID, cert_fingerprint)
+   rpa -> os: getDefaultBrowserPackageName()
+   rpa <-- os: return (browserPackageName, cert_fingerprint)
    rpa -> rpa: verify cert_fingerprint
-   rpa ->> os: Intent(URL).setPackage(browserApplicationID)
-   os ->> opw: Intent(URL).setPackage(browserApplicationID)
+   rpa ->> os: Intent(URL).setPackage(browserPackageName)
+   os ->> opw: Intent(URL).setPackage(browserPackageName)
 end
 
 @enduml
