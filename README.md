@@ -452,84 +452,97 @@ Intent that has the package name of the default browser set.
 **Example Code:**
 
 ```kotlin
-if (isLegitAppInstalled(packageName)) {
-   val browserIntent = Intent(Intent.ACTION_VIEW, uri)
-   browserIntent.setPackage(packageName)
-   startActivityForResult(browserIntent, 1)
+val (basePackageName, baseCerFingerprint) = getAssetLinksJsonFile(uri)
+
+if (isAppLegit(basePackageName, baseCertFingerprints)) {
+   val redirectionIntent = Intent(Intent.ACTION_VIEW, uri)
+   redirectionIntent.setPackage(basePackageName)
+   startActivityForResult(redirectionIntent, 0)
 } else {
-   val builder = CustomTabsIntent.Builder()
-   val customTabsIntent = builder.build()
-   val defaultBrowser = getDefaultBrowserPackageName()
-   customTabsIntent.intent.setPackage(defaultBrowser)
-   customTabsIntent.launchUrl(this, uri)
+   redirectToWeb(uri)
 }
 
-private fun isLegitAppInstalled(packageName: String): Boolean {
-   try {
-      // Try to query the signing certificates of the
-      // IDP app. If the IDP app is not installed this
-      // operation will throw an error.
-      val signatures: Array<Signature>?
-      if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+fun redirectToWeb(uri: Uri) {
+    val builder = CustomTabsIntent.Builder()
+    val customTabsIntent = builder.build()
+    val defaultBrowser = getDefaultBrowserPackageName()
+    customTabsIntent.launchUrl(uri)
+}
+
+fun isAppLegit(
+    packageName: String,
+    baseCertFingerprints: Set<String>
+): Boolean {
+    val foundCertFingerprints = getSingingCertificates(packageName)
+    if (foundCertFingerprints != null) {
+        return matchHashes(baseCertFingerprints, foundCertFingerprints)
+    }
+    return false
+}
+
+fun matchHashes(certHashes0: Set<String>, certHashes1: Set<String>): Boolean {
+    if (certHashes0.containsAll(certHashes1)
+        && certHashes0.size == certHashes1.size
+    ) {
+        return true
+    }
+    return false
+}
+
+fun getSingingCertificates(packageName: String): Set<String>? {
+    try {
+        // Try to query the signing certificates of the
+        // IDP app. If the IDP app is not installed this
+        // operation will throw an error.
+        val signatures: Array<Signature>?
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             val signingInfo = packageManager.getPackageInfo(
-               packageName,
-               PackageManager.GET_SIGNING_CERTIFICATES
+                packageName,
+                PackageManager.GET_SIGNING_CERTIFICATES
             ).signingInfo
             signatures = signingInfo.signingCertificateHistory
-      } else {
+        } else {
             signatures = packageManager.getPackageInfo(
-               packageName,
-               PackageManager.GET_SIGNATURES
+                packageName,
+                PackageManager.GET_SIGNATURES
             ).signatures
-      }
+        }
 
-      println("Cert hashes for $packageName")
-      // calculate the hashes of the signing certificates
-      val signatureStrings = generateSignatureHashes(signatures)
+        // calculate the hashes of the signing certificates
+        val foundCertFingerprints = generateSignatureHashes(signatures)
 
-      // Compare the hashes with a predefined list of
-      // certificate hashes for the app.
-      return matchHashes(packageName, signatureStrings)
-   } catch (e: PackageManager.NameNotFoundException) {
-      return false
-   }
+        return foundCertFingerprints
+    } catch (e: PackageManager.NameNotFoundException) {
+        return null
+    }
 }
 
-private fun getDefaultBrowserPackageName(): String {
-   /*
-      Source: https://stackoverflow.com/questions/23611548/how-to-find-default-browser-set-on-android-device
-   */
-   val browserIntent =
-      Intent(Intent.ACTION_VIEW, Uri.parse("http://"))
-   val resolveInfo =
-      packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
+fun getDefaultBrowserPackageName(context: Context): String {
+    /*
+        Source: https://stackoverflow.com/questions/23611548/how-to-find-default-browser-set-on-android-device
+     */
+    val browserIntent =
+        Intent(Intent.ACTION_VIEW, Uri.parse("http://"))
+    val resolveInfo =
+        context.packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
 
-   // This is the default browser's packageName
-   val packageName = resolveInfo!!.activityInfo.packageName
+    // This is the default browser's packageName and certificate fingerprint hashes
+    val packageName = resolveInfo!!.activityInfo.packageName
+    val certHashes = BROWSER_SIGNATURE_HASHES[packageName]
 
-   if (isLegitAppInstalled(packageName)) {
-      return packageName
-   } else {
-      throw SecurityException("Signing certificate does not match")
-   }
+    if (certHashes != null && isAppLegit(context, packageName, certHashes)) {
+        return packageName
+    } else {
+        throw SecurityException("Signing certificate does not match")
+    }
 }
 
-private fun matchHashes(packageName: String, signatures: Set<String>): Boolean {
-   if (signatures.containsAll(IDP_SIGNATURE_HASHES[packageName]!!)
-      && signatures.size == IDP_SIGNATURE_HASHES[packageName]?.size) {
-      return true
-   }
-   return false
-}
-
-private val IDP_SIGNATURE_HASHES = mapOf(
-   "com.example.openidprovider" to setOf("mMfhQ5ypyWgn_kcWmsBgKmFbiC_MTqtmR45n5iqT-Gg="),
-   "com.example.openidprovider2" to setOf("WCdjSvXVB3zeS5QnYLDHzTONkxMCjQvgD8Um9Ig58dU="),
-   "com.android.chrome" to setOf("8P1sW0EPJcslw7UzRsiXL64w-O50Ed-RBICtay1g24M="),
-   "org.mozilla.firefox" to setOf("p4tipRZbRJSy_q2edqKA0i2Tf-5iUa7OWZRGsuoxmwQ="),
-   "com.duckduckgo.mobile.android" to setOf("u3uzHFc8RqHaf8XFKKas9DIQhFb-7FCBDH8zaU6z0tQ="),
-   "com.opera.browser" to setOf("XWr7-H9lKvBGR62g32NM8iNwkAsWSwnVC9I6ostShbg="),
-   "com.cloudmosa.puffinFree" to setOf("miN4zCylfd-MpHNZQlmFqrRntXm3gROVN4LkpHxDfFk=")
+val BROWSER_SIGNATURE_HASHES = mapOf(
+    "com.android.chrome" to setOf("8P1sW0EPJcslw7UzRsiXL64w-O50Ed-RBICtay1g24M="),
+    "org.mozilla.firefox" to setOf("p4tipRZbRJSy_q2edqKA0i2Tf-5iUa7OWZRGsuoxmwQ="),
+    "com.duckduckgo.mobile.android" to setOf("u3uzHFc8RqHaf8XFKKas9DIQhFb-7FCBDH8zaU6z0tQ="),
+    "com.opera.browser" to setOf("XWr7-H9lKvBGR62g32NM8iNwkAsWSwnVC9I6ostShbg="),
+    "com.cloudmosa.puffinFree" to setOf("miN4zCylfd-MpHNZQlmFqrRntXm3gROVN4LkpHxDfFk=")
 )
 ```
 
@@ -557,7 +570,25 @@ as in the **RP App to IDP** solution.
 **Example Code:**
 
 ```kotlin
-println("Example code following")
+val foundPackageName: String? = callingActivity?.packageName
+if (foundPackageName != null) {
+   val (basePackageName, baseCerFingerprint) = getAssetLinksJsonFile(uri)
+   val foundCertFingerprints = getSingingCertificates(packageName)
+
+   if (foundCertFingerprints != null
+      && matchHashes(foundCertFingerprints, baseCertFingerprints)
+      && foundPackageName == basePackageName
+    ) {
+        val redirectionIntent = Intent(Intent.ACTION_VIEW, uri)
+        setResult(0, redirectionIntent)
+        finish()
+    } else {
+        redirectToWeb(uri)
+    }
+
+} else {
+   redirectToWeb(uri)
+}
 ```
 
 
@@ -578,7 +609,17 @@ will be redirected to the legit app.
 **Example Code:**
 
 ```kotlin
-println("Example code following")
+/**
+* Example Java Spring rest controller endpoint to
+* rewrite the URL.
+*/
+@GetMapping("/complete")
+fun complete(@RequestParam code: String): RedirectView {
+   val redirection = RedirectView()
+   val codeEncoded = URLEncoder.encode(code, StandardCharsets.UTF_8)
+   redirection.url = "intent://relyingparty.intranet/complete?code=${codeEncoded}#Intent;scheme=http;package=com.example.relyingparty;S.browser_fallback_url=http://relyingpart.intranet/website;end"
+   return redirection
+}
 ```
 
 ## Limitations on Android
