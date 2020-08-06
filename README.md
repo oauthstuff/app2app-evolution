@@ -452,7 +452,7 @@ Intent that has the package name of the default browser set.
 **Example Code:**
 
 ```kotlin
-val (basePackageName, baseCerFingerprint) = getAssetLinksJsonFile(uri)
+val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
 
 if (isAppLegit(basePackageName, baseCertFingerprints)) {
    val redirectionIntent = Intent(Intent.ACTION_VIEW, uri)
@@ -517,14 +517,14 @@ fun getSingingCertificates(packageName: String): Set<String>? {
     }
 }
 
-fun getDefaultBrowserPackageName(context: Context): String {
+fun getDefaultBrowserPackageName(): String {
     /*
         Source: https://stackoverflow.com/questions/23611548/how-to-find-default-browser-set-on-android-device
      */
     val browserIntent =
         Intent(Intent.ACTION_VIEW, Uri.parse("http://"))
     val resolveInfo =
-        context.packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
+        packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
 
     // This is the default browser's packageName and certificate fingerprint hashes
     val packageName = resolveInfo!!.activityInfo.packageName
@@ -572,7 +572,7 @@ as in the **RP App to IDP** solution.
 ```kotlin
 val foundPackageName: String? = callingActivity?.packageName
 if (foundPackageName != null) {
-   val (basePackageName, baseCerFingerprint) = getAssetLinksJsonFile(uri)
+   val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
    val foundCertFingerprints = getSingingCertificates(packageName)
 
    if (foundCertFingerprints != null
