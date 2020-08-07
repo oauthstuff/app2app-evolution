@@ -14,9 +14,11 @@ participant "OpenID Provider Website" as opw
 participant "Authorization Server" as as
 end box
 
+rpa -> opw: GET /.well-known/assetlinks.json
+rpa <-- opw: return (packageName, baseCertFingerprint)
 rpa -> os: isAppInstalled(packageName)
-rpa <-- os: return (installed, cert_fingerprint)
-rpa -> rpa: verify cert_fingerprint
+rpa <-- os: return (installed, foundCertFingerprint)
+rpa -> rpa: verify foundCertFingerprint
 
 alt installed == true && verification successful
    rpa ->> os: Intent(URL).setPackage(packageName)

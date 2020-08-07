@@ -452,6 +452,11 @@ Intent that has the package name of the default browser set.
 **Example Code:**
 
 ```kotlin
+import net.openid.appauth.browser.BrowserAllowList
+import net.openid.appauth.browser.BrowserSelector
+import net.openid.appauth.browser.VersionedBrowserMatcher
+
+
 val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
 
 if (isAppLegit(basePackageName, baseCertFingerprints)) {
@@ -465,8 +470,29 @@ if (isAppLegit(basePackageName, baseCertFingerprints)) {
 fun redirectToWeb(uri: Uri) {
     val builder = CustomTabsIntent.Builder()
     val customTabsIntent = builder.build()
-    val defaultBrowser = getDefaultBrowserPackageName()
-    customTabsIntent.launchUrl(uri)
+
+    // find a suitable browser to open the URL
+    val browserDescriptor = BrowserSelector.select(
+        context, 
+        BrowserAllowList(
+            VersionedBrowserMatcher.CHROME_CUSTOM_TAB,
+            VersionedBrowserMatcher.CHROME_BROWSER,
+            VersionedBrowserMatcher.FIREFOX_CUSTOM_TAB,
+            VersionedBrowserMatcher.FIREFOX_BROWSER,
+            VersionedBrowserMatcher.SAMSUNG_CUSTOM_TAB,
+            VersionedBrowserMatcher.SAMSUNG_BROWSER
+        )    
+    )
+
+    if (browserDescriptor != null) {
+        customTabsIntent.intent.apply {
+            setPackage(browserDescriptor.packageName)
+            flags = Intent.FLAG_ACTIVITY_NO_HISTORY
+        }
+        customTabsIntent.launchUrl(context, uri)
+    } else {
+        Toast.makeText(context, "Could not find a browser", Toast.LENGTH_SHORT).show()
+    }
 }
 
 fun isAppLegit(
@@ -516,34 +542,6 @@ fun getSingingCertificates(packageName: String): Set<String>? {
         return null
     }
 }
-
-fun getDefaultBrowserPackageName(): String {
-    /*
-        Source: https://stackoverflow.com/questions/23611548/how-to-find-default-browser-set-on-android-device
-     */
-    val browserIntent =
-        Intent(Intent.ACTION_VIEW, Uri.parse("http://"))
-    val resolveInfo =
-        packageManager.resolveActivity(browserIntent, PackageManager.MATCH_DEFAULT_ONLY)
-
-    // This is the default browser's packageName and certificate fingerprint hashes
-    val packageName = resolveInfo!!.activityInfo.packageName
-    val certHashes = BROWSER_SIGNATURE_HASHES[packageName]
-
-    if (certHashes != null && isAppLegit(context, packageName, certHashes)) {
-        return packageName
-    } else {
-        throw SecurityException("Signing certificate does not match")
-    }
-}
-
-val BROWSER_SIGNATURE_HASHES = mapOf(
-    "com.android.chrome" to setOf("8P1sW0EPJcslw7UzRsiXL64w-O50Ed-RBICtay1g24M="),
-    "org.mozilla.firefox" to setOf("p4tipRZbRJSy_q2edqKA0i2Tf-5iUa7OWZRGsuoxmwQ="),
-    "com.duckduckgo.mobile.android" to setOf("u3uzHFc8RqHaf8XFKKas9DIQhFb-7FCBDH8zaU6z0tQ="),
-    "com.opera.browser" to setOf("XWr7-H9lKvBGR62g32NM8iNwkAsWSwnVC9I6ostShbg="),
-    "com.cloudmosa.puffinFree" to setOf("miN4zCylfd-MpHNZQlmFqrRntXm3gROVN4LkpHxDfFk=")
-)
 ```
 
 ### IDP App to RP
@@ -573,7 +571,7 @@ as in the **RP App to IDP** solution.
 val foundPackageName: String? = callingActivity?.packageName
 if (foundPackageName != null) {
    val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
-   val foundCertFingerprints = getSingingCertificates(packageName)
+   val foundCertFingerprints = getSingingCertificates(foundPackageName)
 
    if (foundCertFingerprints != null
       && matchHashes(foundCertFingerprints, baseCertFingerprints)

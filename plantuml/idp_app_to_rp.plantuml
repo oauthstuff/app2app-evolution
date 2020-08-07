@@ -15,9 +15,11 @@ participant "Authorization Server" as as
 end box
 
 alt callingActivity?.packageName != null
+   rpw <- opa: GET /.well-known/assetlinks.json
+   rpw --> opa: return (packageName, baseCertFingerprint)
    os <- opa: getCertificate(callingActivity?.packageName)
-   os --> opa: return (cert_fingerprint)
-   opa -> opa: verify cert_fingerprint and redirect_uri
+   os --> opa: return (foundCertFingerprint)
+   opa -> opa: verify foundCertFingerprint
    os <<- opa: setResult(intent)
    rpa <<- os: setResult(intent)
 else
