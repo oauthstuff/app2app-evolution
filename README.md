@@ -11,30 +11,30 @@ and web2app redirection on Android and iOS.
 
 ## Problem Statement
 
-Since OAuth is used to issue access tokens for accessing protected
+When using OAuth to issue access tokens for protected
 resources it is crucial to secure the issuance process. Therefore,
 it is important that the Authorization Request and the Authorization
-Response does not get hijacked by an adversary. 
+Response do not get hijacked by an adversary. 
 
 If, for example, the
-Authorization Response gets hijacked and the client does not use
-PKCE, the adversary could inject the authorization code into his 
+Authorization Response is hijacked and the client does not use
+PKCE, the adversary could inject the stolen authorization code into his own 
 session to get access to the victim's protected resources ([Code Injection](https://tools.ietf.org/id/draft-ietf-oauth-security-topics-14.html#rfc.section.4.5)). 
-PKCE can help to protect the Authorization Response. But if
-the Authorization Request gets also hijacked, the attacker can 
-modify it and use the authorization code despite PKCE. This attack
+PKCE can help to protect against Code Injection, but if
+the Authorization Request is hijacked as well, the attacker can 
+modify it and use the resulting authorization code despite PKCE. This attack
 is similar to the one described [here](https://web-in-security.blogspot.com/2017/01/pkce-what-cannot-be-protected.html).
 Using a Pushed Authorization Request (PAR) or signing the Authorization 
 Request will also not mitigate the attacks that are possible if the
 OAuth redirection gets hijacked. Therefore, it is critical to
 properly secure the redirection to the OpenID Provider (IDP). 
 
-In a browser, it is secure to redirect the user using a URL,
-but this is not secure on most mobile operating systems.
-Android, for example, permit's arbitrary apps to claim that they
+In a browser, it is generally secure to redirect the user using a URL,
+but this is not the case on most mobile operating systems.
+Android, for example, permits arbitrary apps to claim that they
 handle a specific domain. Although it is possible to verify a 
 domain-app association ([Android App Link](https://developer.android.com/training/app-links)) 
-this does not help if the app is not installed on
+this mechanism is not active if the respective app is not installed on
 the device. In case the IDP app is not installed the user would
 have to choose from a menu with which app he wants to open the URL.
 
@@ -48,14 +48,14 @@ Another problem on Android is the redirection back from the browser
 to the Relying Party app. If the RP app uses an Android
 App Link and the user was redirected to the Chrome browser, the user
 can be sent back to the app by simply being redirected to the Android
-App Link. However, this does not work in every other browser. To be
+App Link. However, this does not work in most of the other browsers. To be
 browser independent it is necessary to use a custom URL scheme.
-But this implicates that arbitrary apps can register themselves
-to handle this custom scheme which makes it susceptible to redirect
+Arbitrary apps, however, can register themselves
+to handle the same custom scheme, making this technique susceptible to redirect
 hijacking.
 
 On iOS the situation is different. There, an app can only claim to
-handle an http:// or https:// scheme URL if it can verify an association 
+handle an `http://` or `https://` scheme URL if it can verify an association 
 with the domain ([Universal Links](https://developer.apple.com/ios/universal-links/)).
 Custom schemes, again, can be claimed by every app but the OS will
 not display a selection menu, but instead launch the app that
@@ -71,7 +71,7 @@ The attacker has the following capabilities:
 - can install apps that register the same custom scheme as an honest
 app
 - cannot install apps that verify an app association with a domain 
-he does not own
+he does not control
 - cannot manipulate the operating system
 
 
@@ -80,7 +80,7 @@ On Android:
 applicationID as an honest app in the Play Store
 - can install apps with the same applicationID as an honest 
 app through a third-party app store
-- cannot sign an APK with a certificate he does not own
+- cannot sign an APK with a certificate he does not control
 
 ## Goals
 
@@ -96,7 +96,7 @@ default browser.
 
 ## Solution on iOS
 On iOS, we can use Universal Links to redirect the user from one
-app to another. The good thing hereby is that we can set a flag
+app to another. The good thing here is that we can set a flag
 called: ``.universalLinksOnly: true``. This will only redirect
 the user if the app that handles this link is installed.
 
@@ -122,7 +122,7 @@ the URL back to the app.
 
 ## App2App and App2Web Solutions on Android
 
-1. Open app via HTTPS link
+1. **Open app via HTTPS link**
    ```kotlin
     val uri =  Uri.parse("https://app2app.unsicher.ovh?request_uri=Hello_World")
 
@@ -137,7 +137,7 @@ the URL back to the app.
    app can claim to handle the domain name, the user could
    choose an app from an attacker.
 
-2. Open the web browser with an intent that has the category *CATEGORY_APP_BROWSER* set
+2. **Open the web browser with an intent that has the category *CATEGORY_APP_BROWSER* set**
    ```kotlin
    val uri =  Uri.parse("https://app2app.unsicher.ovh?request_uri=Hello_World")
 
@@ -150,7 +150,7 @@ the URL back to the app.
    If the user has multiple browsers installed, he still has to
    choose between them.
 
-3. Use Android Custom Tabs
+3. **Use Android Custom Tabs**
    ```kotlin
    val uri =  Uri.parse("https://app2app.unsicher.ovh?request_uri=Hello_World")
 
@@ -158,8 +158,8 @@ the URL back to the app.
    val customTabsIntent = builder.build()
    customTabsIntent.launchUrl(this, uri)
    ```
-   This code opens a [Android Custom Tab](https://developer.chrome.com/multidevice/android/customtabs). 
-   The problem hereby is that if the user does not 
+   This code opens an [Android Custom Tab](https://developer.chrome.com/multidevice/android/customtabs). 
+   The problem here is that if the user does not 
    have a default browser (unlikely), he has to choose
    between all installed browsers. Additionally, if a
    malicious app is installed the user has to 
@@ -170,7 +170,7 @@ the URL back to the app.
    that does not support Custom Tabs, the browser application
    will launch.
 
-4. Set default browser as package in the Intent
+4. **Set default browser as package in the Intent**
    ```kotlin
    val uri =  Uri.parse("https://app2app.unsicher.ovh?request_uri=Hello_World")
 
@@ -250,7 +250,7 @@ If an IDP app is responsible for several hundred domains,
 the app has to register an Android App Link for every single
 domain. If one of these registrations fails, none of them would be valid.
 Additionally, the IDP app has to download a document from every
-single domain. This could be a problem in mobile networks.
+single domain. This could be a problem (not only) in mobile networks.
 
 To solve this the Relying Party could add the package name to the
 intent that opens the redirect URL. This would ensure that the 
@@ -272,8 +272,8 @@ Since Android is an open system it is possible to install apps
 from other sources than the Play Store. While it is guaranteed 
 that the package name of apps from the Play Store is unique this 
 does not apply to apps installed from other sources. One possibility
-to overcome this security thread is to check the signing certificate
-of the app, we want to open. This can be done in the ``isAppInstalled``
+to overcome this security threat is to check the signing certificate
+of the app we want to open. This can be done in the ``isAppInstalled``
 method in the following way:
 
 ```kotlin
@@ -300,9 +300,9 @@ private fun isAppInstalled(packageName: String): Boolean {
 }
 ```
 
-For this solution, we need besides the package name additionally
+For this solution, we need, besides the package name, also
 the hashes of the certificates that were used to sign the APK.
-This can either be put into the discovery document or if the
+This can either be put into the OAuth/OpenID Discovery document or if the
 IDP app uses Android App Links the hash can be found in the
 ``/.well-known/assetlinks.json`` file.
 
@@ -316,7 +316,7 @@ the OpenID Provider app can get the package name of the calling
 app with ``callingActivity?.packageName`` and second the IDP  app
 can redirect to the calling app with the ``setResult()`` method.
 
-Nevertheless, should the IDP app check if the redirect_uri from the AS, 
+Nevertheless, the IDP app should check if the redirect_uri from the AS, 
 the package name, and the certificate fingerprint of the calling app
 matches. This should be done like this:
 
@@ -412,8 +412,8 @@ user experience:
    is that the intent specification is in the
    fragment part of the URL. Since OAuth 2.0 just
    uses the redirect_uri and appends the 
-   parameters it is not directly possible to use
-   this type of URL. But if we redirect the 
+   parameters, it is not directly possible to use
+   this type of URL. In fact, it is explicitly forbidden by RFC6749. But if we redirect the 
    browser to a backend endpoint that
    redirects the browser to a URL with the intent
    scheme it is possible to use an existing AS
@@ -422,9 +422,8 @@ user experience:
 
 ## Proposed Solution on Android
 
-After seeing so many possible solutions for Android you probably ask
-yourself what are the best techniques for Android. This section 
-describes the best current practice solution for Android. It is 
+After seeing so many possible solutions for Android, what are the best techniques for Android? This section 
+describes the proposed best current practice solution for Android. It is 
 divided into the redirection from the RP app to the IDP, the IDP app to the RP, and the IDP website to the RP. This solution will not use
 Android App Links, but instead set the package name of the apps
 explicitly to the Android Intent.
