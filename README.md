@@ -1,4 +1,6 @@
-Author: Fabian Hauck (yes.com)
+Authors:\
+Fabian Hauck (yes.com)\
+Daniel Fett (yes.com)
 
 # app2app-evolution
 
