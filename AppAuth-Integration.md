@@ -10,7 +10,7 @@ need to securely redirect the user is a URI.
 
 ## Requirements
 
-1. Configure the ``assetlinks.json`` file for [Android App Links](https://developer.android.com/training/app-links/verify-site-associations). 
+1. Configure the ``/.well-known/assetlinks.json`` file for [Android App Links](https://developer.android.com/training/app-links/verify-site-associations). 
     Example:
 
     1. RP domain:
@@ -110,33 +110,17 @@ need to securely redirect the user is a URI.
 
 ## API Usage
 
-**RP to IDP Redirection:**
-
-If the app and the domain fulfill the requirements, you can
-securely redirect from the RP app to the IDP app or the browser 
+If the apps and the domain fulfill the requirements, you can
+securely redirect from one app to another app or the browser 
 if the app is not installed, with the following code:
 ```kotlin
 import com.example.redirection.secureRedirection
 
-val uri = Uri.parse("https://openidprovider.intranet?request_uri=...&client_id=...&response_type=code")
+// Example redirection from RP to IDP
+val uri = Uri.parse("http://openidprovider.intranet/c2id-login")
 secureRedirection(this, uri)
 ```
 
-**IDP to RP Redirection:**
-
-If the IDP app was called with the function above, you
-can use the ``secureRedirectionBackwards(context, uri)`` 
-method to redirect back to the RP
-app. The requirement for this is that you call this
-function from the same Activity that was invoked
-by the ``secureRedirection(context, uri)`` method.
-If the RP app is not installed or the ``assetlinks.json``
-file is not available, this method will automatically
-redirect the user to his default browser.
-
-```kotlin
-import com.example.redirection.secureRedirectionBackwards
-
-val uri = Uri.parse("https://relyingparty.intranet?code=...")
-secureRedirectionBackwards(this, uri)
-```
+**Note:** If the ``/.well-known/assetlinks.json`` file is not
+available for the target domain, this function will
+automatically redirect the user to his default browser.

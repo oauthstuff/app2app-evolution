@@ -279,7 +279,7 @@ of the app we want to open. This can be done in the ``isAppInstalled``
 method in the following way:
 
 ```kotlin
-private fun isAppInstalled(packageName: String): Boolean {
+private fun isAppLegit(packageName: String): Boolean {
    try {
       // Try to query the signing certificates of the
       // IDP app. If the IDP app is not installed this
@@ -322,20 +322,34 @@ Nevertheless, the IDP app should check if the redirect_uri from the AS,
 the package name, and the certificate fingerprint of the calling app
 matches. This should be done like this:
 
-```
-domain := getDomain(redirect_uri)
-assetLinks := request.get("https://{domain}/.well-known/assetlink.json")
+```kotlin
+val foundPackageName: String? = callingActivity?.packageName
 
-applicationID := callingActivity?.packageName
-cert_fingerprints := getCertFingerprint(applicationID)
+val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
+val foundCertFingerprints = getSingingCertificates(foundPackageName)
 
-if (applicationID == assetLinks[0].target.package_name
-   && cert_fingerprints == assetLinks[0].target.sha256_cert_fingerprints) {
-   // everything fine
+if (matchHashes(foundCertFingerprints, baseCertFingerprints)
+   && foundPackageName == basePackageName) {
+   // Everything is fine call setResult()
 } else {
-   // something malicious is going on
+   // Something is wrong with the installed app.
+   // Redirect the user to the browser.
 }
 ```
+
+**Problem with this approach:**
+
+Since ``callingActivity?.packageName`` is only available from the
+activity that was originally called by ``startActivityForResult()``,
+the IDP app cannot change the activity before redirecting back to
+the RP app. That is a problem in cases where the IDP app uses different
+activities to log the user in or to request a 2-factor authentication.
+For this reason we do not recommend using ``startActivityForResult()``
+because it takes away flexibility and does only provide a negligible
+amount of additional security. The only thing we lose is the ability
+to determine which app has called the IDP app. But since we can trust the
+redirect uri, we can make a secure redirection with this uri and the
+mechanics described above.
 
 ### User's Default Browser Selection Considerations
 The selection of any browser that the user has set as the default 
@@ -439,8 +453,8 @@ app is not installed, the Package Manager will throw an exception.
 After this, the certificate hash has to be compared with the hash that is
 found in the ``/.well-known/assetlinks.json`` file. If they are the same,
 the RP app can redirect the user to the IDP app with an Android Intent
-that has the package name of the IDP app set. The Intent has to be started
-with the method ``startActivityForResult()``. 
+that has the package name of the IDP app set. The Intent can either be started
+with the method ``startActivity()`` or ``startActivityForResult()``. 
 
 If the IDP app is not
 installed, the RP app has to determine the user's default browser
@@ -453,19 +467,24 @@ Intent that has the package name of the default browser set.
 **Example Code:**
 
 ```kotlin
+// use methods from the AppAuth-Android project: https://github.com/openid/AppAuth-Android
 import net.openid.appauth.browser.BrowserAllowList
 import net.openid.appauth.browser.BrowserSelector
 import net.openid.appauth.browser.VersionedBrowserMatcher
 
+/**
+* Main method to do the redirection
+*/
+fun secureRedirection(uri: Uri) {
+   val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
 
-val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
-
-if (isAppLegit(basePackageName, baseCertFingerprints)) {
-   val redirectionIntent = Intent(Intent.ACTION_VIEW, uri)
-   redirectionIntent.setPackage(basePackageName)
-   startActivityForResult(redirectionIntent, 0)
-} else {
-   redirectToWeb(uri)
+   if (isAppLegit(basePackageName, baseCertFingerprints)) {
+      val redirectionIntent = Intent(Intent.ACTION_VIEW, uri)
+      redirectionIntent.setPackage(basePackageName)
+      startActivity(redirectionIntent)
+   } else {
+      redirectToWeb(uri)
+   }
 }
 
 fun redirectToWeb(uri: Uri) {
@@ -488,7 +507,6 @@ fun redirectToWeb(uri: Uri) {
     if (browserDescriptor != null) {
         customTabsIntent.intent.apply {
             setPackage(browserDescriptor.packageName)
-            flags = Intent.FLAG_ACTIVITY_NO_HISTORY
         }
         customTabsIntent.launchUrl(context, uri)
     } else {
@@ -547,7 +565,16 @@ fun getSingingCertificates(packageName: String): Set<String>? {
 
 ### IDP App to RP
 
-The IDP app has to check whether the variable 
+Concerning this redirection we have two cases that depend on whether the
+method ``startActivityForResult()`` is used to start the IDP app.
+
+**Case 1:** The method is not used to redirect from the RP app to the IDP app
+
+In this case we can use the exact same method from above (``secureRedirection(uri: Uri)``).
+
+**Case 2:** The method is used to redirect from the RP app to the IDP app
+
+In this case the IDP app has to check whether the variable 
 ``callingActivity?.packageName`` is not null. If the variable is not null,
 the app knows that it was called with the method ``startActivityForResult()``
 and the IDP app also knows the package name of the RP app. With the 
@@ -569,24 +596,30 @@ as in the **RP App to IDP** solution.
 **Example Code:**
 
 ```kotlin
-val foundPackageName: String? = callingActivity?.packageName
-if (foundPackageName != null) {
-   val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
-   val foundCertFingerprints = getSingingCertificates(foundPackageName)
+/**
+* Method to redirect back to the RP app if the IDP app 
+* is started with 'startActivityForResult()'.
+*/
+fun secureRedirectionBackwards(uri: Uri) {
+   val foundPackageName: String? = callingActivity?.packageName
+   if (foundPackageName != null) {
+      val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
+      val foundCertFingerprints = getSingingCertificates(foundPackageName)
 
-   if (foundCertFingerprints != null
-      && matchHashes(foundCertFingerprints, baseCertFingerprints)
-      && foundPackageName == basePackageName
-    ) {
-        val redirectionIntent = Intent(Intent.ACTION_VIEW, uri)
-        setResult(0, redirectionIntent)
-        finish()
-    } else {
-        redirectToWeb(uri)
-    }
+      if (foundCertFingerprints != null
+         && matchHashes(foundCertFingerprints, baseCertFingerprints)
+         && foundPackageName == basePackageName
+      ) {
+         val redirectionIntent = Intent(Intent.ACTION_VIEW, uri)
+         setResult(0, redirectionIntent)
+         finish()
+      } else {
+         redirectToWeb(uri)
+      }
 
-} else {
-   redirectToWeb(uri)
+   } else {
+      redirectToWeb(uri)
+   }
 }
 ```
 
