@@ -132,7 +132,9 @@ If the user normally uses a browser other than the system Safari, it is at best 
 
 iOS14 should improve this situation by adding a [system level preference where the user can select an alternative browser](https://developer.apple.com/documentation/xcode/allowing_apps_and_websites_to_link_to_your_content/preparing_your_app_to_be_the_default_browser_or_email_client) - however the alternative browser will not be able to share cookies/sessions with the system Safari, and it is currently believed that ASWebAuthenticationSession will always be handled by the system Safari.
 
+JJH: I wonder if alternative browsers handle links that are claimed by apps properly - Apple mention universal links in above url, but don't appear to require alternate browsers to support them
 
+For the OAuth client / relying party, if flows starting in both app and mobile web are supported, it's probably best to use different redirect uris depending on whether the flow starts in the app or in the mobile web browser, so there is a higher change the flow ends up back where the user started. (By contrast, the OAuth server / OpenID Provider should generally not use different urls for it's authorization endpoint for the web vs app flows, as there is no standard way to publish the alternate URL.)
 
 
 ## App2App and App2Web Solutions on Android
@@ -144,6 +146,7 @@ iOS14 should improve this situation by adding a [system level preference where t
     val browserIntent = Intent(Intent.ACTION_VIEW, uri)
     startActivity(browserIntent)
    ```
+
    If the app of the domain owner is installed and supports
    [Android App Links](https://developer.android.com/training/app-links) 
    the legit app will always be opened. If the domain owner
@@ -165,6 +168,10 @@ iOS14 should improve this situation by adding a [system level preference where t
    If the user has multiple browsers installed, he still has to
    choose between them.
 
+   Note that (in sharp contrast to iOS) the Google Play Store allows any app to claim to be a browser. 
+
+   JJH: Am I correct in this note? The wording of the previous paragraph is making me doubt myself.
+
 3. **Use Android Custom Tabs**
    ```kotlin
    val uri =  Uri.parse("https://app2app.unsicher.ovh?request_uri=Hello_World")
@@ -181,7 +188,7 @@ iOS14 should improve this situation by adding a [system level preference where t
    choose between this app and the browser. It is a
    similar problem as in solution 1. 
    
-   However the good thing is that if the user chooses a browser 
+   However a positive is that if the user chooses a browser 
    that does not support Custom Tabs, the browser application
    will launch.
 
@@ -255,11 +262,11 @@ private fun isAppInstalled(packageName: String): Boolean {
 ```
 
 **Note:** Since the package name of the app
-is needed, it would be necessary to include it in
-the OpenID Provider's metadata ([RFC 8414](https://tools.ietf.org/html/rfc8414#section-2)) or download it from 
-``/.well-known/assetlinks.json``.
+is needed, it would be necessary to download it from 
+``/.well-known/assetlinks.json``. An alternative would be to include it in
+the OpenID Provider's metadata ([RFC 8414](https://tools.ietf.org/html/rfc8414#section-2)), but a method to do this has not been standardized. 
 
-From Android 11, the [app will need to request extra permissions](https://developer.android.com/preview/privacy/package-visibility) to do this.
+From Android 11, the [app will need to request extra permissions](https://developer.android.com/preview/privacy/package-visibility) to use the package manager APIs.
 
 
 ### Problem with Android App Links
@@ -272,10 +279,8 @@ single domain (JJH: I don't understand this point - did it mean "the OS has to d
 To solve this the Relying Party could add the package name to the
 intent that opens the redirect URL. This would ensure that the 
 correct app opens without Android App Links. It is also a good 
-solution since we already have the package name of the IDP
-to check whether the app is installed or not.
-JJH: I don't understand where we already have the package name from
-JJH: I'm worried that this section could be intrepretted as suggesting this very small bit of code is a better/as good solution compared to applinks - which it isn't, because we've lost the signature verification.
+solution since we already need to have have the package name of the IDP
+app to use the above `isAppInstalled`.
 
 ```kotlin
 val uri =  Uri.parse("https://app2app.unsicher.ovh?request_uri=Hello_World")
@@ -285,6 +290,8 @@ val redirectIntent = Intent(Intent.ACTION_VIEW, uri)
 redirectIntent.setPackage(packageName)
 startActivity(redirectIntent)
 ```
+
+This, by itself, is not a direct replacement for Android AppLinks - for the app2app use case, the main difference is the application signature is not verified using this method.
 
 ### Problem with Alternative App Stores
 Since Android is an open system it is possible to install apps 
@@ -318,8 +325,9 @@ private fun isAppLegit(packageName: String): Boolean {
    }
 }
 ```
+The `generateSignatureHashes` method is found in [AppAuth-Android](https://github.com/openid/AppAuth-Android/blob/0875455b1390c49c4d6b2aaeee01a3cbf93d3407/library/java/net/openid/appauth/browser/BrowserDescriptor.java#L159).
 
-For this solution, we need, besides the package name, also
+For this solution, as well as the package name, we also need
 the hashes of the certificates that were used to sign the APK.
 This can either be put into the OAuth/OpenID Discovery document or if the
 IDP app uses Android App Links the hash can be found in the
@@ -343,7 +351,7 @@ matches. This should be done like this:
 val foundPackageName: String? = callingActivity?.packageName
 
 val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
-val foundCertFingerprints = getSingingCertificates(foundPackageName)
+val foundCertFingerprints = getSigningCertificates(foundPackageName)
 
 if (matchHashes(foundCertFingerprints, baseCertFingerprints)
    && foundPackageName == basePackageName) {
@@ -361,12 +369,17 @@ activity that was originally called by ``startActivityForResult()``,
 the IDP app cannot change the activity before redirecting back to
 the RP app. That is a problem in cases where the IDP app uses different
 activities to log the user in or to request a 2-factor authentication.
+
+JJH: I don't follow this - if the iDP app wants to use extra activities, it can just retrieve the packageName in the first one and pass the string to the second activity?
+
 For this reason we do not recommend using ``startActivityForResult()``
 because it takes away flexibility and does only provide a negligible
 amount of additional security. The only thing we lose is the ability
 to determine which app has called the IDP app. But since we can trust the
 redirect uri, we can make a secure redirection with this uri and the
 mechanics described above.
+
+JJH: ``startActivityForResult`` also has UX benefits I think, e.g. it guarantees the RP receives a result even if the iDP app crashes, and gives the RP the ability to terminate the activity with `finishActivity`
 
 ### User's Default Browser Selection Considerations
 The selection of any browser that the user has set as the default 
@@ -380,6 +393,7 @@ browser warns the user.
 
 <img src="images/DuckDuckGo_Browser_Redirect_Warning.png" width=300px/>
 
+
 #### Safe Browsers
 The following browsers generate the intended 
 user experience:
@@ -387,6 +401,10 @@ user experience:
 1. **Chrome** (especially Chrome Custom Tabs)
 2. **Firefox** (also supports Custom Tabs)
 3. **Opera** 
+
+JJH: Is this section only talking about custom url schemes?
+
+JJH: I'm interested to know what browsers were considered here - https://www.netmarketshare.com/browser-market-share.aspx?options=%7B%22filter%22%3A%7B%22%24and%22%3A%5B%7B%22deviceType%22%3A%7B%22%24in%22%3A%5B%22Mobile%22%5D%7D%7D%2C%7B%22platform%22%3A%7B%22%24in%22%3A%5B%22Android%22%5D%7D%7D%5D%7D%2C%22dateLabel%22%3A%22Custom%22%2C%22attributes%22%3A%22share%22%2C%22group%22%3A%22browser%22%2C%22sort%22%3A%7B%22share%22%3A-1%7D%2C%22id%22%3A%22browsersDesktop%22%2C%22dateInterval%22%3A%22Monthly%22%2C%22dateStart%22%3A%222020-06%22%2C%22dateEnd%22%3A%222020-06%22%2C%22segments%22%3A%22-1000%22%2C%22hiddenSeries%22%3A%7B%7D%7D suggests we should probably explicitly comment on Samsung Browser.
 
 ## Web2App Solutions on Android
 
@@ -399,8 +417,10 @@ user experience:
    and the website was opened in the Chrome browser
    the user will be redirected to the app without an
    app selection dialog. If no app with Android App
-   Link is installed the URL will open in the Chrome
-   browser. If the website was opened in another browser,
+   Link is installed the session will continue in Chrome
+   browser.
+   
+   If the website was opened in another browser,
    the user will be redirected to the website and not
    the app.
 
@@ -411,6 +431,7 @@ user experience:
    has to possible choose between the Firefox browser and
    a malicious app that has registered itself for the
    domain name. 
+   JJH: i'm guessing only firefox has this behaviour? Is it resolved in fenix? ( https://www.ctrl.blog/entry/review-firefox-fenix-android.html )
 
 2. Use a custom scheme
    ```html 
@@ -418,10 +439,12 @@ user experience:
    ```
    This solution has the advantage that every 
    browser will open the app that supports the
-   scheme. The disadvantage is that every app
+   scheme. The disadvantage is that any app
    can register itself for the scheme. So an
    adversary could install an app for that scheme
    and then the user has to choose between apps.
+
+   Implementing a fallback if the app is not installed is possible but a little involved.
 
 3. Use the intent scheme
    ```html
@@ -441,7 +464,7 @@ user experience:
    feature to specify the signing certificate hash of
    the target app. But this feature is not available.
 
-   The problem with this scheme and OAuth 2.0
+   The problem with the intent scheme and OAuth 2.0
    is that the intent specification is in the
    fragment part of the URL. Since OAuth 2.0 just
    uses the redirect_uri and appends the 
@@ -450,7 +473,7 @@ user experience:
    browser to a backend endpoint that
    redirects the browser to a URL with the intent
    scheme it is possible to use an existing AS
-   without modifications.
+   without modifications - though compared to App Links redirecting via the web browser is a poorer UX and leaves a tab open in the user's browser.
 
 
 ## Proposed Solution on Android
@@ -458,7 +481,7 @@ user experience:
 After seeing so many possible solutions for Android, what are the best techniques for Android? This section 
 describes the proposed best current practice solution for Android. It is 
 divided into the redirection from the RP app to the IDP, the IDP app to the RP, and the IDP website to the RP. This solution will not use
-Android App Links, but instead set the package name of the apps
+Android App Links due to the problems noted above, but will instead set the package name of the apps
 explicitly to the Android Intent.
 
 ### RP App to IDP
@@ -494,6 +517,7 @@ import net.openid.appauth.browser.VersionedBrowserMatcher
 */
 fun secureRedirection(uri: Uri) {
    val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
+   // JJH: I think in the general case it's possible to have more than one package name match a given uri? https://stackoverflow.com/questions/48056006/how-to-create-assetlinks-json-when-website-is-handled-by-multiple-apps - so this should perhaps return an array? (I also can't find the source for this function)
 
    if (isAppLegit(basePackageName, baseCertFingerprints)) {
       val redirectionIntent = Intent(Intent.ACTION_VIEW, uri)
@@ -535,7 +559,7 @@ fun isAppLegit(
     packageName: String,
     baseCertFingerprints: Set<String>
 ): Boolean {
-    val foundCertFingerprints = getSingingCertificates(packageName)
+    val foundCertFingerprints = getSigningCertificates(packageName)
     if (foundCertFingerprints != null) {
         return matchHashes(baseCertFingerprints, foundCertFingerprints)
     }
@@ -551,7 +575,7 @@ fun matchHashes(certHashes0: Set<String>, certHashes1: Set<String>): Boolean {
     return false
 }
 
-fun getSingingCertificates(packageName: String): Set<String>? {
+fun getSigningCertificates(packageName: String): Set<String>? {
     try {
         // Try to query the signing certificates of the
         // IDP app. If the IDP app is not installed this
@@ -585,28 +609,27 @@ fun getSingingCertificates(packageName: String): Set<String>? {
 Concerning this redirection we have two cases that depend on whether the
 method ``startActivityForResult()`` is used to start the IDP app.
 
-**Case 1:** The method is not used to redirect from the RP app to the IDP app
+JJH: I've simplified this - I think the original text was trying to trying to create some agreement between the iDP & RP about whether `startActivityForResult()` is used or not, and I don't think it's necessary for the two to agree, the method can work anyway.
+
+**Case 1:** `getCallingActivity()` is null
+
+`startActivityForResult()` was not used from the RP app to the IDP app
 
 In this case we can use the exact same method from above (``secureRedirection(uri: Uri)``).
 
-**Case 2:** The method is used to redirect from the RP app to the IDP app
+As noted for iOS, the RP native app may want to use a different redirect url to the web app if the user may start the flow from the system browser despite having the RP app installed.
 
-In this case the IDP app has to check whether the variable 
-``callingActivity?.packageName`` is not null. If the variable is not null,
-the app knows that it was called with the method ``startActivityForResult()``
-and the IDP app also knows the package name of the RP app. With the 
+**Case 2:**  `getCallingActivity()` is not null
+
+This means `startActivityForResult()` was used.
+
+In this case the IDP app knows the package name of the calling app. With the 
 package name, the IDP app can get the signing certificate of the
-RP app. This information can be compared with the values that are 
+calling app. This information can be compared with the values that are 
 stored in the  ``/.well-known/assetlinks.json`` file of the redirect_uri 
-domain for the package name and the certificate. If these values are the
-same, the IDP app can redirect the user back to the RP app with the 
+domain. If all these values match and the redirect_uri is a registered one for that RP, 
+the IDP app can redirect the user back to the RP app with the 
 method ``setResult()``.
-
-If the IDP app was not
-started via the ``startActivityForResult()`` method the RP app is not 
-installed or the user did not use the app. In this case, we have to
-redirect the user back to the default browser with the same mechanic
-as in the **RP App to IDP** solution.
 
 <img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/idp_app_to_rp.plantuml" style="background-color: white">
 
@@ -621,7 +644,7 @@ fun secureRedirectionBackwards(uri: Uri) {
    val foundPackageName: String? = callingActivity?.packageName
    if (foundPackageName != null) {
       val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
-      val foundCertFingerprints = getSingingCertificates(foundPackageName)
+      val foundCertFingerprints = getSigningCertificates(foundPackageName)
 
       if (foundCertFingerprints != null
          && matchHashes(foundCertFingerprints, baseCertFingerprints)
@@ -652,6 +675,8 @@ the Authorization Response and redirects the browser to a URL that uses
 the intent:// scheme. In this intent:// scheme the RP can set the package
 name of the RP app. Since we started the flow inside the RP app the user
 will be redirected to the legit app.
+
+JJH: I think the 'since' makes the assumption in-app browser tabs are supported by the user's browser? If not I don't understand it. Or is the assumption that the flow started in the genuine RP app? I'm not sure we can guarantee that. We can guarantee the user doesn't end up back in a browser/malicious app with a different package id, but it's upto the RP to verify if the RP app in use is genuine.
 
 <img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/idp_web_to_rp.plantuml" style="background-color: white">
 
@@ -685,3 +710,5 @@ Chrome browser which is not possible if he starts the flow
 in another browser or we have to accept the risk that the
 redirection could get hijacked by an app that was installed
 from an alternative app store with the same package name.
+
+To solve this, we strongly recommend that alternate browsers are enhanced to support app links in the same way Chrome does.
