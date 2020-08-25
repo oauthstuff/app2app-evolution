@@ -167,7 +167,7 @@ For the OAuth client / relying party, if flows starting in both app and mobile w
    If the user has multiple browsers installed, he still has to
    choose between them.
 
-   Note that in the Google Play Store is it not clear how hard it is to publish an app that uses CATEGORY_APP_BROWSER (whereas on iOS a signing permission manually granted by Apple is required for an app to be selectable as the default browser). 
+   Note that in the Google Play Store is it not clear how hard it is to publish an app that provides CATEGORY_APP_BROWSER (whereas on iOS a signing permission manually granted by Apple is required for an app to be selectable as the default browser). 
 
 
 3. **Use Android Custom Tabs**
