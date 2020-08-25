@@ -120,19 +120,18 @@ In case the app is not installed we can launch an
 that opens an in-app browser session powered by Safari.
 Hereby it is possible to use existing session cookies from the
 Safari browser. To redirect back to the app, the app specifies a
-custom scheme before launching the browser. If the browser is 
-redirected to the custom scheme the browser will exit and give
+claimed https url before launching the browser. If the browser is 
+redirected to the claimed https url the browser will exit and give
 the URL back to the app.
-JJH: did you consider using a claimed https url instead of custom scheme? Both will work, but I have a feeling the claimed https url has better security properties, and I can't see any advantage to a custom scheme.
-https://tools.ietf.org/html/bcp212#section-7.2 says we "SHOULD" use claimed urls when possible. requiring/allowing clients to register custom schemes seems unnecessary and probably just have a custom scheme registered for a client opens an attack surface.
 
 ## Limitations on iOS
 
 If the user normally uses a browser other than the system Safari, it is at best difficult to return them to that browser in the web2app flow, and to send them to that browser in the app2web flow.
 
-iOS14 should improve this situation by adding a [system level preference where the user can select an alternative browser](https://developer.apple.com/documentation/xcode/allowing_apps_and_websites_to_link_to_your_content/preparing_your_app_to_be_the_default_browser_or_email_client) - however the alternative browser will not be able to share cookies/sessions with the system Safari, and it is currently believed that ASWebAuthenticationSession will always be handled by the system Safari.
+iOS14 should improve this situation by adding a [system level preference where the user can select an alternative browser](https://developer.apple.com/documentation/xcode/allowing_apps_and_websites_to_link_to_your_content/preparing_your_app_to_be_the_default_browser_or_email_client) - however the alternative browser will not be able to share cookies/sessions with the system Safari, and it is currently believed that ASWebAuthenticationSession will always be handled by the system Safari. Unfortunately the rules for 
+alternate browsers do not currently seem to require them to implement Universal Links, nor to provide a similar user experience to Safari if they do support them.
 
-JJH: I wonder if alternative browsers handle links that are claimed by apps properly - Apple mention universal links in above url, but don't appear to require alternate browsers to support them
+iOS requires apps are signed using an extra permission that is manually granted by Apple before they can become the default browser, so it seems we can trust that the default browser is generally not malicious. 
 
 For the OAuth client / relying party, if flows starting in both app and mobile web are supported, it's probably best to use different redirect uris depending on whether the flow starts in the app or in the mobile web browser, so there is a higher change the flow ends up back where the user started. (By contrast, the OAuth server / OpenID Provider should generally not use different urls for it's authorization endpoint for the web vs app flows, as there is no standard way to publish the alternate URL.)
 
@@ -168,9 +167,8 @@ For the OAuth client / relying party, if flows starting in both app and mobile w
    If the user has multiple browsers installed, he still has to
    choose between them.
 
-   Note that (in sharp contrast to iOS) the Google Play Store allows any app to claim to be a browser. 
+   Note that in the Google Play Store is it not clear how hard it is to publish an app that uses CATEGORY_APP_BROWSER (whereas on iOS a signing permission manually granted by Apple is required for an app to be selectable as the default browser). 
 
-   JJH: Am I correct in this note? The wording of the previous paragraph is making me doubt myself.
 
 3. **Use Android Custom Tabs**
    ```kotlin
@@ -273,8 +271,8 @@ From Android 11, the [app will need to request extra permissions](https://develo
 If an IDP app is responsible for several hundred domains,
 the app has to register an Android App Link for every single
 domain. If one of these registrations fails, none of them would be valid.
-Additionally, the IDP app has to download a document from every
-single domain (JJH: I don't understand this point - did it mean "the OS has to download..."?). This could be a problem in situations like low bandwidth or high latency networks.
+Additionally, the OS has to download a document from every
+single domain. This could be a problem in situations like low bandwidth or high latency networks.
 
 To solve this the Relying Party could add the package name to the
 intent that opens the redirect URL. This would ensure that the 
@@ -364,22 +362,11 @@ if (matchHashes(foundCertFingerprints, baseCertFingerprints)
 
 **Problem with this approach:**
 
-Since ``callingActivity?.packageName`` is only available from the
-activity that was originally called by ``startActivityForResult()``,
-the IDP app cannot change the activity before redirecting back to
-the RP app. That is a problem in cases where the IDP app uses different
-activities to log the user in or to request a 2-factor authentication.
+When an activity is launched with `startActivityForResult()` care is required when the iDP app launches further activities, such as sub-activities to request login or 2-factor authentication.
 
-JJH: I don't follow this - if the iDP app wants to use extra activities, it can just retrieve the packageName in the first one and pass the string to the second activity?
+The 1.2.0 release of androidx.activity provides APIs that simplify this process, though currently (August 2020) this version is still an alpha release.
 
-For this reason we do not recommend using ``startActivityForResult()``
-because it takes away flexibility and does only provide a negligible
-amount of additional security. The only thing we lose is the ability
-to determine which app has called the IDP app. But since we can trust the
-redirect uri, we can make a secure redirection with this uri and the
-mechanics described above.
-
-JJH: ``startActivityForResult`` also has UX benefits I think, e.g. it guarantees the RP receives a result even if the iDP app crashes, and gives the RP the ability to terminate the activity with `finishActivity`
+https://developer.android.com/training/basics/intents/result
 
 ### User's Default Browser Selection Considerations
 The selection of any browser that the user has set as the default 
@@ -608,8 +595,6 @@ fun getSigningCertificates(packageName: String): Set<String>? {
 
 Concerning this redirection we have two cases that depend on whether the
 method ``startActivityForResult()`` is used to start the IDP app.
-
-JJH: I've simplified this - I think the original text was trying to trying to create some agreement between the iDP & RP about whether `startActivityForResult()` is used or not, and I don't think it's necessary for the two to agree, the method can work anyway.
 
 **Case 1:** `getCallingActivity()` is null
 
