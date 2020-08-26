@@ -389,9 +389,7 @@ user experience:
 2. **Firefox** (also supports Custom Tabs)
 3. **Opera** 
 
-JJH: Is this section only talking about custom url schemes?
-
-JJH: I'm interested to know what browsers were considered here - https://www.netmarketshare.com/browser-market-share.aspx?options=%7B%22filter%22%3A%7B%22%24and%22%3A%5B%7B%22deviceType%22%3A%7B%22%24in%22%3A%5B%22Mobile%22%5D%7D%7D%2C%7B%22platform%22%3A%7B%22%24in%22%3A%5B%22Android%22%5D%7D%7D%5D%7D%2C%22dateLabel%22%3A%22Custom%22%2C%22attributes%22%3A%22share%22%2C%22group%22%3A%22browser%22%2C%22sort%22%3A%7B%22share%22%3A-1%7D%2C%22id%22%3A%22browsersDesktop%22%2C%22dateInterval%22%3A%22Monthly%22%2C%22dateStart%22%3A%222020-06%22%2C%22dateEnd%22%3A%222020-06%22%2C%22segments%22%3A%22-1000%22%2C%22hiddenSeries%22%3A%7B%7D%7D suggests we should probably explicitly comment on Samsung Browser.
+FIXME: we should clarify this section and add mention of Samsung Browser as it's the second most popular android browser
 
 ## Web2App Solutions on Android
 
@@ -410,15 +408,6 @@ JJH: I'm interested to know what browsers were considered here - https://www.net
    If the website was opened in another browser,
    the user will be redirected to the website and not
    the app.
-
-   Another problem arises if the IDP website is opened in a
-   Firefox Custom Tab and the user is redirected to the RP website
-   inside the Custom Tab. Now he decides to click on "Open in Firefox".
-   If the right app with an Android App Link is not installed he
-   has to possible choose between the Firefox browser and
-   a malicious app that has registered itself for the
-   domain name. 
-   JJH: i'm guessing only firefox has this behaviour? Is it resolved in fenix? ( https://www.ctrl.blog/entry/review-firefox-fenix-android.html )
 
 2. Use a custom scheme
    ```html 
@@ -503,8 +492,10 @@ import net.openid.appauth.browser.VersionedBrowserMatcher
 * Main method to do the redirection
 */
 fun secureRedirection(uri: Uri) {
+   // A full, generic implementation of this is more complex - the assetlinks.json may list
+   // multiple apps, only some of which the user has installed, and only some of which handle
+   // the path for the authorization endpoint
    val (basePackageName, baseCertFingerprints) = getAssetLinksJsonFile(uri)
-   // JJH: I think in the general case it's possible to have more than one package name match a given uri? https://stackoverflow.com/questions/48056006/how-to-create-assetlinks-json-when-website-is-handled-by-multiple-apps - so this should perhaps return an array? (I also can't find the source for this function)
 
    if (isAppLegit(basePackageName, baseCertFingerprints)) {
       val redirectionIntent = Intent(Intent.ACTION_VIEW, uri)
@@ -652,16 +643,16 @@ fun secureRedirectionBackwards(uri: Uri) {
 ### IDP Web to RP
 
 The redirect_uri should depend on whether the user starts a flow
-on the web or the Android app. This diagram shows the case
+on the web or in the Android app. This diagram shows the case
 where the user started in the RP app but was redirected to the web 
 because the IDP app was not installed. In this case, the redirect_uri
-should point to an endpoint of the RP that takes the parameters from
+should point to an endpoint of the RP's website that takes the parameters from
 the Authorization Response and redirects the browser to a URL that uses
 the intent:// scheme. In this intent:// scheme the RP can set the package
-name of the RP app. Since we started the flow inside the RP app the user
-will be redirected to the legit app.
-
-JJH: I think the 'since' makes the assumption in-app browser tabs are supported by the user's browser? If not I don't understand it. Or is the assumption that the flow started in the genuine RP app? I'm not sure we can guarantee that. We can guarantee the user doesn't end up back in a browser/malicious app with a different package id, but it's upto the RP to verify if the RP app in use is genuine.
+name of the RP app. If the flow is started from the genuine RP app, the user
+will be returrned to the same app. (The user or an attacker could have installed
+a different app with same package name as the genuine app, it is up to
+the RP to defend itself against rogue apps accessing it's service.)
 
 <img src="https://www.plantuml.com/plantuml/proxy?fmt=svg&src=https://raw.githubusercontent.com/oauthstuff/app2app-evolution/master/plantuml/idp_web_to_rp.plantuml" style="background-color: white">
 
