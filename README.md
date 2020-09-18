@@ -364,30 +364,6 @@ if (matchHashes(foundCertFingerprints, baseCertFingerprints)
 
 When an activity is launched with `startActivityForResult()` care is required when the iDP app launches further activities, such as sub-activities to request login or 2-factor authentication.
 
-The iDP application will have to support `startActivity()` to support the web2app case, supporting `startActivityForResult()` in addition adds extra code and potential complications without offering any additional security benefits.
-
-### User's Default Browser Selection Considerations
-The selection of any browser that the user has set as the default 
-browser bears risks for user experience and security. 
-
-**For example:**
-
-**DuckDuckGo and Puffin:** If the browser is redirected to a URL
-with a custom scheme that opens another app, the
-browser warns the user.
-
-<img src="images/DuckDuckGo_Browser_Redirect_Warning.png" width=300px/>
-
-
-#### Safe Browsers
-The following browsers generate the intended 
-user experience:
-
-1. **Chrome** (especially Chrome Custom Tabs)
-2. **Firefox** (also supports Custom Tabs)
-3. **Opera** 
-
-FIXME: we should clarify this section and add mention of Samsung Browser as it's the second most popular android browser
 
 ## Web2App Solutions on Android
 
@@ -448,6 +424,53 @@ FIXME: we should clarify this section and add mention of Samsung Browser as it's
    redirects the browser to a URL with the intent
    scheme it is possible to use an existing AS
    without modifications.
+
+
+   **Note:** Since the Intent scheme is handled as
+   a normal custom scheme outside of Android, it is
+   important that the endpoint that redirects the
+   user tries to determine whether the request came 
+   from a browser running on Android that supports the 
+   intent:// scheme or another browser.
+   This is due to the fact that custom schemes introduce
+   security risks to the OAuth flow. If the
+   endpoint detects other devices it should display
+   an error message.
+
+
+### User's Default Browser Selection Considerations
+The selection of any browser that the user has set as the default 
+browser bears risks for user experience and security. 
+
+#### Overview
+
+**Google Chrome:**
+   - supports Android App Links, Intent schemes and custom schemes
+   - does not ask the user whether he wants to change the app
+
+**Mozilla Firefox:**
+   - has an option to open links in external apps (disabled by default)
+   - does not correctly validate Android App Links 
+   (relevant if the previous option is enabled)
+   - despite the external app option it always opens
+   Intent scheme in an app if there is no fallback url
+   provided (``S.browser_fallback_url=[encoded_full_url]`` SHOULD NOT 
+   be used in the Intent scheme)
+
+**Samsung Internet Browser:**
+   - has also an option to open links in external apps (disabled by default)
+   - does correctly open Intent schemes even if a fallback
+   url is provided (without enabling the previous option)
+   - handles Android App Links correctly if the first option
+   is enabled
+
+**DuckDuckGo and Puffin:** 
+   - support Intent schemes and custom schemes
+   - if the browser is redirected to a URL
+   with a custom scheme that opens another app, the
+   browser warns the user.
+
+      <img src="images/DuckDuckGo_Browser_Redirect_Warning.png" width=300px/>
 
 
 ## Proposed Solution on Android
