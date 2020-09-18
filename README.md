@@ -364,6 +364,7 @@ if (matchHashes(foundCertFingerprints, baseCertFingerprints)
 
 When an activity is launched with `startActivityForResult()` care is required when the iDP app launches further activities, such as sub-activities to request login or 2-factor authentication.
 
+
 ## Web2App Solutions on Android
 
 1. Use Android App Links
@@ -423,6 +424,7 @@ When an activity is launched with `startActivityForResult()` care is required wh
    redirects the browser to a URL with the intent
    scheme it is possible to use an existing AS
    without modifications.
+
 
    **Note:** Since the Intent scheme is handled as
    a normal custom scheme outside of Android, it is
