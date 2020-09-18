@@ -364,9 +364,7 @@ if (matchHashes(foundCertFingerprints, baseCertFingerprints)
 
 When an activity is launched with `startActivityForResult()` care is required when the iDP app launches further activities, such as sub-activities to request login or 2-factor authentication.
 
-The 1.2.0 release of androidx.activity provides APIs that simplify this process, though currently (August 2020) this version is still an alpha release.
-
-https://developer.android.com/training/basics/intents/result
+The iDP application will have to support `startActivity()` to support the web2app case, supporting `startActivityForResult()` in addition adds extra code and potential complications without offering any additional security benefits.
 
 ### User's Default Browser Selection Considerations
 The selection of any browser that the user has set as the default 
