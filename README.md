@@ -428,7 +428,8 @@ When an activity is launched with `startActivityForResult()` care is required wh
    a normal custom scheme outside of Android, it is
    important that the endpoint that redirects the
    user tries to determine whether the request came 
-   from an Android device or another device.
+   from a browser running on Android that supports the 
+   intent:// scheme or another browser.
    This is due to the fact that custom schemes introduce
    security risks to the OAuth flow. If the
    endpoint detects other devices it should display
