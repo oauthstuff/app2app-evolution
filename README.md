@@ -463,6 +463,7 @@ browser bears risks for user experience and security.
    is enabled
 
 **DuckDuckGo and Puffin:** 
+   - support Intent schemes and custom schemes
    - if the browser is redirected to a URL
    with a custom scheme that opens another app, the
    browser warns the user.
