@@ -447,7 +447,7 @@ FIXME: we should clarify this section and add mention of Samsung Browser as it's
    browser to a backend endpoint that
    redirects the browser to a URL with the intent
    scheme it is possible to use an existing AS
-   without modifications - though compared to App Links redirecting via the web browser is a poorer UX and leaves a tab open in the user's browser.
+   without modifications.
 
 
 ## Proposed Solution on Android
