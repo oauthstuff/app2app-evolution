@@ -62,8 +62,7 @@ As we can see in the picture, a malicious OpenID Provider app also claims to
 handle the authorization server's domain. In this case, the user could choose
 the malicious app instead of the browser. 
 
-Another problem on Android is the redirection back from and IDP loaded in the browser 
-to the Relying Party (RP) app. If the RP app uses an Android
+Another problem on Android is the redirection back from the IDP website loaded in the browser to the Relying Party (RP) app. If the RP app uses an Android
 App Link and the user was redirected to the Chrome browser, the user
 can be sent back to the app by simply being redirected to the Android
 App Link. This does not, however, work in most of the other browsers. To be
