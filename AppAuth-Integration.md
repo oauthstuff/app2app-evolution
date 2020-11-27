@@ -1,12 +1,11 @@
 # AppAuth Integration
 
 To easily implement the mechanics that are 
-described in the ``app2app-evolution`` document
-we propose two new functions for the [AppAuth-Android](https://github.com/openid/AppAuth-Android)
-library: One to redirect the user from the RP to the 
-IDP and one method to redirect the user from the IDP
-back to the RP. The only parameter these functions
-need to securely redirect the user is a URI.
+described in the ``Improving OAuth App-to-App Security`` document
+we propose a new function for the [AppAuth-Android](https://github.com/openid/AppAuth-Android)
+library to securely redirect the user from one app to another. 
+The only parameter this function
+needs to redirect the user is a URI.
 
 ## Requirements
 
@@ -56,7 +55,7 @@ need to securely redirect the user is a URI.
             <data
                 android:host="openidprovider.intranet"
                 android:scheme="http"
-                android:path="/c2id-login" />
+                android:path="/login" />
         </intent-filter>
     2. RP app:
         ```xml
@@ -114,10 +113,10 @@ If the apps and the domain fulfill the requirements, you can
 securely redirect from one app to another app or the browser 
 if the app is not installed, with the following code:
 ```kotlin
-import com.example.redirection.secureRedirection
+import net.openid.appauth.app2app.SecureRedirection
 
 // Example redirection from RP to IDP
-val uri = Uri.parse("http://openidprovider.intranet/c2id-login")
+val uri = Uri.parse("http://openidprovider.intranet/login")
 secureRedirection(this, uri)
 ```
 
